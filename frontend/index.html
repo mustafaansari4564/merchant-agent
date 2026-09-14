@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MerchantAgent — AI Checkout Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #06060a; --surface: #0e0e14; --surface2: #16161f; --surface3: #1e1e2a;
+    --border: #2a2a3a; --text: #e8e8f0; --text2: #7878a0; --text3: #505070;
+    --accent: #6c5ce7; --accent2: #a29bfe; --accent-glow: rgba(108,92,231,0.3);
+    --green: #00d2a0; --green-glow: rgba(0,210,160,0.2);
+    --red: #ff6b6b; --orange: #ffd93d; --razorpay: #072654;
+    --gradient: linear-gradient(135deg, #6c5ce7, #00d2a0);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+
+  /* --- Left: Chat Panel --- */
+  .chat-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
+
+  /* Top Nav */
+  .top-nav {
+    padding: 10px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 16px; font-size: 12px;
+  }
+  .top-nav .nav-links { display: flex; gap: 6px; }
+  .nav-chip {
+    padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text2); cursor: pointer;
+    font-size: 11px; font-weight: 500; transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .nav-chip:hover { border-color: var(--accent); color: var(--accent2); background: rgba(108,92,231,0.1); }
+  .nav-chip.active { border-color: var(--accent); color: #fff; background: var(--accent); }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .cart-toggle {
+    position: relative; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); cursor: pointer;
+    font-size: 12px; font-weight: 600; transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif; display: flex; align-items: center; gap: 6px;
+  }
+  .cart-toggle:hover { border-color: var(--green); color: var(--green); }
+  .cart-badge {
+    position: absolute; top: -6px; right: -6px; background: var(--green);
+    color: #000; font-size: 10px; font-weight: 800; width: 18px; height: 18px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
+  .cart-badge:empty { display: none; }
+
+  .chat-header {
+    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo-3d { width: 48px; height: 48px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: var(--surface2); }
+  .chat-header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .chat-header h1 span { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .chat-header p { font-size: 12px; color: var(--text2); margin-top: 1px; }
+  .header-badge {
+    margin-left: auto; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--green); background: var(--green-glow);
+    padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0,210,160,0.3);
+  }
+
+  .chat-messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 78%; display: flex; flex-direction: column; }
+  .msg.user { align-self: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+  .bubble {
+    padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6;
+    word-wrap: break-word; animation: fadeUp 0.3s ease-out;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .msg.user .bubble {
+    background: var(--accent); color: #fff; border-bottom-right-radius: 4px;
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .msg.assistant .bubble { background: var(--surface2); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+  .tool-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; margin-top: 6px; color: var(--accent2);
+    animation: fadeUp 0.2s ease-out;
+  }
+
+  .cart-bar {
+    border-top: 1px solid var(--border); background: var(--surface);
+    font-size: 13px; animation: fadeUp 0.3s ease-out;
+    display: flex; flex-direction: column; max-height: 200px; overflow-y: auto;
+  }
+  .cart-items { padding: 8px 16px; flex: 1; overflow-y: auto; }
+  .cart-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .cart-item:last-child { border-bottom: none; }
+  .cart-item .item-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cart-item .item-qty { color: var(--text2); margin: 0 8px; font-size: 11px; }
+  .cart-item .item-price { color: var(--green); font-weight: 600; }
+  .cart-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface2);
+  }
+  .cart-footer .total { font-weight: 700; color: var(--green); font-size: 15px; }
+  .pay-btn {
+    background: linear-gradient(135deg, #072654, #3395ff); color: #fff; border: none;
+    border-radius: 10px; padding: 8px 20px; cursor: pointer; font-size: 13px; font-weight: 700;
+    font-family: 'Inter', system-ui, sans-serif; transition: transform 0.15s, box-shadow 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pay-btn:hover { transform: scale(1.03); box-shadow: 0 4px 20px rgba(7,38,84,0.4); }
+  .pay-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .pay-btn .rzp-icon { font-size: 16px; }
+  .coupon-row {
+    display: flex; gap: 6px; padding: 6px 16px; border-top: 1px solid var(--border);
+    background: var(--surface); align-items: center;
+  }
+  .coupon-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; color: var(--text); font-size: 12px;
+    font-family: 'Inter', system-ui, sans-serif; outline: none;
+  }
+  .coupon-input:focus { border-color: var(--accent); }
+  .coupon-input::placeholder { color: var(--text3); }
+  .coupon-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; font-size: 11px; font-weight: 600;
+    font-family: 'Inter', system-ui, sans-serif; transition: all 0.2s;
+  }
+  .coupon-btn:hover { background: #5a4bd1; }
+  .coupon-msg {
+    font-size: 11px; padding: 2px 16px 4px; color: var(--green);
+  }
+  .coupon-msg.error { color: var(--red); }
+
+  .chat-input {
+    display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .chat-input input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px;
+    font-family: 'Inter', system-ui, sans-serif; outline: none; transition: border-color 0.2s;
+  }
+  .chat-input input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .chat-input input::placeholder { color: var(--text3); }
+  .chat-input button {
+    background: var(--gradient); color: #fff; border: none; border-radius: 12px;
+    padding: 12px 24px; cursor: pointer; font-size: 14px; font-weight: 600;
+    font-family: 'Inter', system-ui, sans-serif; transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .chat-input button:hover { transform: scale(1.03); box-shadow: 0 4px 20px var(--accent-glow); }
+  .chat-input button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Suggestion Chips */
+  .suggestions {
+    display: flex; gap: 6px; padding: 0 20px 10px; flex-wrap: wrap; background: var(--surface);
+  }
+  .suggestion-chip {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text2); cursor: pointer;
+    font-size: 12px; font-weight: 500; transition: all 0.2s; white-space: nowrap;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .suggestion-chip:hover { border-color: var(--accent); color: var(--accent2); background: rgba(108,92,231,0.1); transform: translateY(-1px); }
+
+  /* --- Right: Audit Panel --- */
+  .audit-panel { width: 360px; display: flex; flex-direction: column; background: var(--surface); flex-shrink: 0; }
+  .audit-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .audit-header h2 { font-size: 15px; font-weight: 700; }
+  .audit-header p { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  .audit-entries { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .audit-entry {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px; font-size: 12px;
+    transition: border-color 0.2s;
+  }
+  .audit-entry:hover { border-color: var(--accent); }
+  .audit-entry .action { font-weight: 600; color: var(--accent2); margin-bottom: 4px; font-size: 12px; }
+  .audit-entry .explanation { color: var(--text); line-height: 1.5; font-size: 12px; }
+  .audit-entry .timestamp { color: var(--text3); font-size: 10px; margin-top: 6px; }
+  .audit-entry .guardrail { color: var(--orange); font-size: 11px; margin-top: 4px; }
+  .audit-entry .status-blocked { border-left: 3px solid var(--red); }
+  .audit-entry .status-success { border-left: 3px solid var(--green); }
+  .audit-empty { color: var(--text3); text-align: center; padding: 40px 20px; font-size: 13px; }
+
+  /* Typing dots */
+  .typing { display: inline-flex; gap: 3px; padding: 4px 0; }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent2);
+    animation: bounce 1.4s infinite both;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.16s; }
+  .typing span:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+
+  /* Price Comparison Cards */
+  .price-cards {
+    display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;
+  }
+  .price-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; transition: border-color 0.2s, transform 0.15s; cursor: default;
+  }
+  .price-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .price-card.cheapest { border-color: var(--green); background: rgba(0,210,160,0.05); }
+  .price-card .thumb {
+    width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
+    background: var(--surface2); flex-shrink: 0;
+  }
+  .price-card .info { flex: 1; min-width: 0; }
+  .price-card .title {
+    font-size: 13px; font-weight: 500; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .price-card .meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .price-card .source-badge {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 2px 8px; border-radius: 4px; color: #fff;
+  }
+  .source-badge.amazon { background: #ff9900; }
+  .source-badge.flipkart { background: #2874f0; }
+  .source-badge.google { background: #4285f4; }
+  .source-badge.duckduckgo { background: #de5833; }
+  .source-badge.default { background: var(--text3); }
+  .price-card .rating { font-size: 11px; color: var(--orange); }
+  .price-card .delivery { font-size: 11px; color: var(--text3); }
+  .price-card .price-col { text-align: right; flex-shrink: 0; }
+  .price-card .price-val {
+    font-size: 16px; font-weight: 800; color: var(--green);
+  }
+  .price-card.cheapest .price-val { color: var(--green); }
+  .price-card .buy-btn {
+    display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600;
+    color: var(--accent2); text-decoration: none; padding: 3px 10px;
+    border: 1px solid var(--accent); border-radius: 6px; transition: all 0.2s;
+  }
+  .price-card .buy-btn:hover { background: var(--accent); color: #fff; }
+  .price-card .add-cart-btn {
+    display: inline-block; margin-top: 4px; margin-left: 4px; font-size: 11px; font-weight: 600;
+    color: #fff; background: var(--green); padding: 3px 10px;
+    border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .price-card .add-cart-btn:hover { background: #00b894; transform: scale(1.05); }
+  .price-card .add-cart-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .price-card .add-cart-btn.added { background: var(--text3); }
+  .cheapest-label {
+    font-size: 10px; font-weight: 700; color: var(--green); background: var(--green-glow);
+    padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(0,210,160,0.3);
+    display: inline-block; margin-bottom: 6px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+</style>
+</head>
+<body>
+
+<!-- Chat Panel -->
+<div class="chat-panel">
+  <div class="top-nav">
+    <div class="nav-links">
+      <button class="nav-chip active" onclick="sendSuggestion('Show me trending products')">🔥 Trending</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me electronics deals')">⚡ Electronics</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me fashion deals')">👗 Fashion</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me home and kitchen deals')">🏠 Home</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me best deals today')">💰 Best Deals</button>
+    </div>
+    <div class="nav-right">
+      <button class="cart-toggle" id="cartToggle" onclick="toggleCartPanel()">
+        🛒 Cart <span class="cart-badge" id="cartBadge"></span>
+      </button>
+    </div>
+  </div>
+  <div class="chat-header">
+    <div class="logo-3d"><canvas id="logoCanvas"></canvas></div>
+    <div>
+      <h1>Merchant<span>Agent</span></h1>
+      <p>AI-powered price comparison across Amazon, Flipkart & more</p>
+    </div>
+    <div class="header-badge">LIVE DEMO</div>
+  </div>
+  <div class="chat-messages" id="messages">
+    <div class="msg assistant">
+      <div class="bubble">Hi! I'm your AI shopping assistant. Ask me to browse products, add items to your cart, apply coupons, or check out with Razorpay. What are you looking for today?</div>
+    </div>
+  </div>
+  <div class="cart-bar" id="cartBar" style="display:none;">
+    <div class="cart-items" id="cartItems"></div>
+    <div class="coupon-row">
+      <input type="text" class="coupon-input" id="couponInput" placeholder="Enter coupon code (e.g. SAVE10)">
+      <button class="coupon-btn" onclick="applyCoupon()">Apply</button>
+    </div>
+    <div class="coupon-msg" id="couponMsg"></div>
+    <div class="cart-footer">
+      <div>
+        <span class="total" id="cartTotal">₹0</span>
+        <span id="discountLine" style="display:none; margin-left:8px; font-size:12px; color:var(--green); text-decoration:line-through; color:var(--text3);"></span>
+        <span id="finalTotal" style="display:none; margin-left:8px; font-size:16px; font-weight:800; color:var(--green);"></span>
+      </div>
+      <button class="pay-btn" id="payBtn" onclick="checkoutRazorpay()">
+        <span class="rzp-icon">💳</span> Pay with Razorpay
+      </button>
+    </div>
+  </div>
+  <div class="suggestions" id="suggestions">
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest iPhone 15')">📱 iPhone 15</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest wireless earbuds')">🎧 Earbuds</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest laptop under 50000')">💻 Laptop</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest running shoes')">👟 Shoes</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest air conditioner')">❄️ AC</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest smartwatch')">⌚ Watch</button>
+  </div>
+  <div class="chat-input">
+    <input type="text" id="userInput" placeholder="Search any product across Amazon, Flipkart, Google..." autocomplete="off">
+    <button id="sendBtn" onclick="sendMessage()">🔍 Search</button>
+  </div>
+</div>
+
+<!-- Audit Panel -->
+<div class="audit-panel">
+  <div class="audit-header">
+    <h2>Agent Actions</h2>
+    <p>Every tool call logged with explanations.</p>
+  </div>
+  <div class="audit-entries" id="auditEntries">
+    <div class="audit-empty">Send a message to see agent actions here.</div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// 3D Razorpay Logo Animation (Three.js)
+// =============================================
+(function initLogo() {
+  const canvas = document.getElementById('logoCanvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(48, 48);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.z = 3.2;
+
+  // Razorpay brand color
+  const razorColor = 0x072654;
+  const accentColor = 0x3395ff;
+
+  // Main logo body — a rounded box shape
+  const bodyGeo = new THREE.BoxGeometry(1.6, 1.0, 0.3, 4, 4, 4);
+  const bodyMat = new THREE.MeshPhongMaterial({ color: razorColor, shininess: 80, specular: 0x4488cc });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  scene.add(body);
+
+  // Accent stripe
+  const stripeGeo = new THREE.BoxGeometry(0.15, 0.7, 0.32);
+  const stripeMat = new THREE.MeshPhongMaterial({ color: accentColor, shininess: 100, emissive: 0x1155aa, emissiveIntensity: 0.3 });
+  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.position.set(-0.45, 0, 0.01);
+  scene.add(stripe);
+
+  // Inner light bar
+  const barGeo = new THREE.BoxGeometry(0.8, 0.08, 0.32);
+  const barMat = new THREE.MeshPhongMaterial({ color: accentColor, emissive: 0x2266cc, emissiveIntensity: 0.5 });
+  const bar = new THREE.Mesh(barGeo, barMat);
+  bar.position.set(0.15, 0, 0.01);
+  scene.add(bar);
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0x6666aa, 0.6);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(2, 2, 3);
+  scene.add(dirLight);
+  const backLight = new THREE.PointLight(0x3395ff, 0.8, 10);
+  backLight.position.set(-2, -1, -2);
+  scene.add(backLight);
+
+  // Floating particles
+  const particleCount = 30;
+  const particleGeo = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount * 3; i += 3) {
+    positions[i] = (Math.random() - 0.5) * 4;
+    positions[i+1] = (Math.random() - 0.5) * 4;
+    positions[i+2] = (Math.random() - 0.5) * 2 - 1;
+  }
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMat = new THREE.PointsMaterial({ color: accentColor, size: 0.04, transparent: true, opacity: 0.6 });
+  const particles = new THREE.Points(particleGeo, particleMat);
+  scene.add(particles);
+
+  // Mouse interaction
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+    mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+  });
+
+  // Animation loop
+  let time = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    time += 0.015;
+
+    body.rotation.y = Math.sin(time * 0.8) * 0.4 + mouseX * 0.2;
+    body.rotation.x = Math.sin(time * 0.5) * 0.15 + mouseY * 0.1;
+    body.position.y = Math.sin(time * 1.2) * 0.06;
+
+    stripe.rotation.y = body.rotation.y;
+    stripe.rotation.x = body.rotation.x;
+    stripe.position.y = body.position.y;
+
+    bar.rotation.y = body.rotation.y;
+    bar.rotation.x = body.rotation.x;
+    bar.position.y = body.position.y;
+
+    particles.rotation.z = time * 0.1;
+    particles.rotation.y = time * 0.05;
+
+    barMat.emissiveIntensity = 0.3 + Math.sin(time * 2) * 0.2;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+// =============================================
+// Chat Logic
+// =============================================
+const API = window.location.origin;
+const SESSION_ID = crypto.randomUUID();
+let awaitingConfirmation = false;
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const auditEl = document.getElementById('auditEntries');
+const cartBar = document.getElementById('cartBar');
+const cartItems = document.getElementById('cartItems');
+const cartTotal = document.getElementById('cartTotal');
+const payBtn = document.getElementById('payBtn');
+const cartBadge = document.getElementById('cartBadge');
+const suggestionsEl = document.getElementById('suggestions');
+const discountLine = document.getElementById('discountLine');
+const finalTotalEl = document.getElementById('finalTotal');
+let cartCount = 0;
+
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function sendSuggestion(text) {
+  inputEl.value = text;
+  sendMessage();
+  // Hide suggestions after first use
+  if (suggestionsEl) suggestionsEl.style.display = 'none';
+}
+
+function toggleCartPanel() {
+  cartBar.style.display = cartBar.style.display === 'none' ? 'flex' : 'none';
+}
+
+// =============================================
+// Add Online Product to Cart
+// =============================================
+async function addToCartOnline(btn, title, price, source, url) {
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+
+  const msg = `Add to cart: "${title}" from ${source} at price ${price} rupees. URL: ${url}`;
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: msg }),
+    });
+    const data = await res.json();
+
+    // Update cart display
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartItems.innerHTML = data.cart.map(i => `
+        <div class="cart-item">
+          <span class="item-name">${escapeHtml(i.product_name)}</span>
+          <span class="item-qty">x${i.quantity}</span>
+          <span class="item-price">${escapeHtml(i.line_total_display)}</span>
+        </div>
+      `).join('');
+      cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+      cartBar.style.display = 'flex';
+      payBtn.disabled = false;
+      cartCount = data.cart.reduce((sum, i) => sum + i.quantity, 0);
+      cartBadge.textContent = cartCount > 0 ? cartCount : '';
+    }
+
+    btn.textContent = '\u2713 Added';
+    btn.classList.add('added');
+
+    // Also show agent's reply in chat
+    if (data.reply) {
+      addMessage('assistant', data.reply);
+    }
+
+    await loadAudit();
+  } catch (err) {
+    btn.textContent = 'Failed';
+    btn.disabled = false;
+  }
+}
+
+// =============================================
+// Apply Coupon Code
+// =============================================
+async function applyCoupon() {
+  const couponInput = document.getElementById('couponInput');
+  const couponMsg = document.getElementById('couponMsg');
+  const code = couponInput.value.trim();
+  if (!code) return;
+
+  couponMsg.textContent = '';
+  couponMsg.className = 'coupon-msg';
+
+  const msg = `Apply coupon code: ${code}`;
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: msg }),
+    });
+    const data = await res.json();
+
+    // Check tool actions for coupon result
+    if (data.tool_actions) {
+      for (const action of data.tool_actions) {
+        if (action.tool === 'apply_coupon') {
+          if (action.result.blocked) {
+            couponMsg.textContent = action.result.error || 'Invalid coupon';
+            couponMsg.className = 'coupon-msg error';
+          } else {
+            couponMsg.textContent = action.result.message || `Coupon ${code} applied!`;
+            couponMsg.className = 'coupon-msg';
+          }
+        }
+      }
+    }
+
+    // Show reply in chat
+    if (data.reply) {
+      addMessage('assistant', data.reply);
+    }
+
+    // Update cart
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartItems.innerHTML = data.cart.map(i => `
+        <div class="cart-item">
+          <span class="item-name">${escapeHtml(i.product_name)}</span>
+          <span class="item-qty">x${i.quantity}</span>
+          <span class="item-price">${escapeHtml(i.line_total_display)}</span>
+        </div>
+      `).join('');
+      cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+    }
+
+    await loadAudit();
+  } catch (err) {
+    couponMsg.textContent = 'Failed to apply coupon';
+    couponMsg.className = 'coupon-msg error';
+  }
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  addMessage('user', text);
+  inputEl.value = '';
+  sendBtn.disabled = true;
+
+  const typingEl = addMessage('assistant', '<div class="typing"><span></span><span></span><span></span></div>', true);
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: text }),
+    });
+    const data = await res.json();
+
+    typingEl.remove();
+    addMessage('assistant', data.reply);
+
+    if (data.tool_actions && data.tool_actions.length > 0) {
+      data.tool_actions.forEach(action => {
+        addToolBadge(action.tool, action.result);
+      });
+    }
+
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartItems.innerHTML = data.cart.map(i => `
+        <div class="cart-item">
+          <span class="item-name">${escapeHtml(i.product_name)}</span>
+          <span class="item-qty">x${i.quantity}</span>
+          <span class="item-price">${escapeHtml(i.line_total_display)}</span>
+        </div>
+      `).join('');
+
+      // Check for coupon in tool actions
+      let discountPct = 0;
+      if (data.tool_actions) {
+        for (const action of data.tool_actions) {
+          if (action.tool === 'apply_coupon' && !action.result.blocked) {
+            discountPct = action.result.discount_percent || 0;
+          }
+        }
+      }
+
+      if (discountPct > 0) {
+        const discountAmt = Math.floor(total * discountPct / 100);
+        const finalTotal = total - discountAmt;
+        cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+        cartTotal.style.textDecoration = 'line-through';
+        cartTotal.style.color = 'var(--text3)';
+        cartTotal.style.fontSize = '12px';
+        discountLine.textContent = `-\u20b9${Math.floor(discountAmt / 100)} (${discountPct}% off)`;
+        discountLine.style.display = 'inline';
+        finalTotalEl.textContent = `\u20b9${Math.floor(finalTotal / 100)}`;
+        finalTotalEl.style.display = 'inline';
+      } else {
+        cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+        cartTotal.style.textDecoration = 'none';
+        cartTotal.style.color = 'var(--green)';
+        cartTotal.style.fontSize = '15px';
+        discountLine.style.display = 'none';
+        finalTotalEl.style.display = 'none';
+      }
+
+      cartBar.style.display = 'flex';
+      payBtn.disabled = false;
+      cartCount = data.cart.reduce((sum, i) => sum + i.quantity, 0);
+      cartBadge.textContent = cartCount > 0 ? cartCount : '';
+    } else {
+      cartBar.style.display = 'none';
+      cartCount = 0;
+      cartBadge.textContent = '';
+    }
+
+    // Check for coupon discount in tool actions
+    if (data.tool_actions) {
+      for (const action of data.tool_actions) {
+        if (action.tool === 'apply_coupon' && !action.result.blocked) {
+          const pct = action.result.discount_percent || 0;
+          const code = action.result.code || '';
+          document.getElementById('couponMsg').textContent = `\u2713 ${code} applied — ${pct}% off`;
+          document.getElementById('couponMsg').className = 'coupon-msg';
+        }
+      }
+    }
+
+    await loadAudit();
+  } catch (err) {
+    typingEl.remove();
+    addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+  }
+
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+function addMessage(role, content, isHtml = false) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (isHtml) bubble.innerHTML = content;
+  else bubble.textContent = content;
+  div.appendChild(bubble);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function addToolBadge(toolName, result) {
+  const last = messagesEl.querySelector('.msg.assistant:last-child');
+  if (!last) return;
+
+  // Price comparison: render cards instead of a plain badge
+  if (toolName === 'search_online_prices' && result && result.results && result.results.length > 0) {
+    renderPriceComparison(last, result);
+    return;
+  }
+
+  const badge = document.createElement('div');
+  badge.className = 'tool-badge';
+  const label = toolName.replace(/_/g, ' ');
+  const status = result?.blocked ? ' (blocked)' : result?.error ? ' (error)' : '';
+  badge.textContent = `\u2699\uFE0F ${label}${status}`;
+  last.appendChild(badge);
+}
+
+function renderPriceComparison(container, data) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'price-cards';
+
+  // Cheapest label
+  if (data.cheapest_source && data.cheapest_price) {
+    const lbl = document.createElement('div');
+    lbl.className = 'cheapest-label';
+    lbl.textContent = `\u2605 Cheapest: ${data.cheapest_price} on ${data.cheapest_source}`;
+    wrapper.appendChild(lbl);
+  }
+
+  data.results.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'price-card' + (i === 0 ? ' cheapest' : '');
+
+    const sourceClass = item.source.toLowerCase().replace(/[^a-z]/g, '');
+    const badgeClass = ['amazon','flipkart','google','duckduckgo'].includes(sourceClass) ? sourceClass : 'default';
+
+    const ratingHtml = item.rating ? `<span class="rating">\u2605 ${item.rating}</span>` : '';
+    const deliveryHtml = item.delivery ? `<span class="delivery">${item.delivery}</span>` : '';
+    const thumbHtml = item.thumbnail
+      ? `<img class="thumb" src="${item.thumbnail}" alt="" onerror="this.style.display='none'">`
+      : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3)">\uD83D\uDCED</div>`;
+
+    const buyBtnHtml = item.url && item.url.startsWith('http')
+      ? `<a class="buy-btn" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Buy \u2192</a>`
+      : '';
+    const addCartBtnHtml = `<button class="add-cart-btn" onclick="addToCartOnline(this, ${JSON.stringify(item.title).replace(/"/g, '&quot;')}, ${item.price}, '${escapeHtml(item.source)}', '${escapeHtml(item.url || '')}')">+ Cart</button>`;
+
+    card.innerHTML = `
+      ${thumbHtml}
+      <div class="info">
+        <div class="title">${escapeHtml(item.title)}</div>
+        <div class="meta">
+          <span class="source-badge ${badgeClass}">${escapeHtml(item.source)}</span>
+          ${ratingHtml}
+          ${deliveryHtml}
+        </div>
+      </div>
+      <div class="price-col">
+        <div class="price-val">${escapeHtml(item.price_display)}</div>
+        ${buyBtnHtml}
+        ${addCartBtnHtml}
+      </div>
+    `;
+    wrapper.appendChild(card);
+  });
+
+  container.querySelector('.bubble').appendChild(wrapper);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// =============================================
+// Razorpay Checkout
+// =============================================
+async function checkoutRazorpay() {
+  payBtn.disabled = true;
+  payBtn.innerHTML = '<span class="rzp-icon">⏳</span> Processing...';
+
+  addMessage('user', 'Checkout');
+  const typingEl = addMessage('assistant', '<div class="typing"><span></span><span></span><span></span></div>', true);
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: 'Checkout and pay with Razorpay' }),
+    });
+    const data = await res.json();
+
+    typingEl.remove();
+    addMessage('assistant', data.reply);
+
+    if (data.tool_actions && data.tool_actions.length > 0) {
+      data.tool_actions.forEach(action => {
+        addToolBadge(action.tool, action.result);
+      });
+    }
+
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartItems.innerHTML = data.cart.map(i => `
+        <div class="cart-item">
+          <span class="item-name">${escapeHtml(i.product_name)}</span>
+          <span class="item-qty">x${i.quantity}</span>
+          <span class="item-price">${escapeHtml(i.line_total_display)}</span>
+        </div>
+      `).join('');
+      cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+    }
+
+    // If there's a payment URL in the reply, open it
+    const replyText = data.reply || '';
+    const urlMatch = replyText.match(/https?:\/\/[^\s)]+/);
+    if (urlMatch) {
+      window.open(urlMatch[0], '_blank');
+    }
+
+    await loadAudit();
+  } catch (err) {
+    typingEl.remove();
+    addMessage('assistant', 'Payment processing failed. Please try again.');
+  }
+
+  payBtn.disabled = false;
+  payBtn.innerHTML = '<span class="rzp-icon">💳</span> Pay with Razorpay';
+}
+
+async function loadAudit() {
+  try {
+    const res = await fetch(`${API}/api/audit/${SESSION_ID}`);
+    const data = await res.json();
+    if (!data.entries || data.entries.length === 0) return;
+
+    auditEl.innerHTML = '';
+    data.entries.forEach(entry => {
+      const div = document.createElement('div');
+      div.className = `audit-entry status-${entry.status}`;
+      div.innerHTML = `
+        <div class="action">${entry.tool_name || entry.action}</div>
+        <div class="explanation">${entry.explanation || 'No explanation'}</div>
+        ${entry.guardrail ? `<div class="guardrail">\u26A0\uFE0F Guardrail: ${entry.guardrail}</div>` : ''}
+        <div class="timestamp">${new Date(entry.created_at).toLocaleTimeString()}</div>
+      `;
+      auditEl.appendChild(div);
+    });
+    auditEl.scrollTop = auditEl.scrollHeight;
+  } catch (e) {}
+}
+</script>
+</body>
+</html>
